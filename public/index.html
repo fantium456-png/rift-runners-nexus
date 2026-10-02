@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#070a13" />
+  <meta name="description" content="Rift Runners: Nexus — a live 2–8 player browser arena. Collect energy, bank it at the Nexus, and pulse rivals before they cash out." />
+  <title>Rift Runners: Nexus</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23070a13'/%3E%3Ccircle cx='32' cy='32' r='18' fill='none' stroke='%2361e8ff' stroke-width='6'/%3E%3Cpath d='M39 10 24 33h10l-7 21 17-27H34z' fill='%23ff65dc'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="ambient" aria-hidden="true"><div></div><div></div><div></div></div>
+  <main id="app">
+    <header class="site-head">
+      <a class="brand" href="/" aria-label="Rift Runners home"><span class="brand-mark">R</span><span>RIFT RUNNERS <b>NEXUS</b></span></a>
+      <div class="head-actions">
+        <span id="connectionPill" class="connection-pill"><i></i><span>Connecting</span></span>
+        <button id="soundBtn" class="icon-btn" type="button" aria-label="Toggle sound" title="Toggle sound">♪</button>
+        <button id="rulesBtn" class="ghost small" type="button">How to play</button>
+      </div>
+    </header>
+
+    <section id="home" class="screen active" aria-labelledby="heroTitle">
+      <div class="hero-grid">
+        <div class="hero-copy">
+          <div class="eyebrow">LIVE MULTIPLAYER · 2–8 PLAYERS · PHONE + DESKTOP</div>
+          <h1 id="heroTitle">OUTRUN.<br /><span>OUTBANK.</span><br />OUTPULSE.</h1>
+          <p class="lede">A 90-second arena sprint where every extra shard makes you richer, slower, and a bigger target.</p>
+          <div class="proof-row"><span>⚡ No install</span><span>⌁ Room codes</span><span>◉ Server-authoritative</span><span>↻ Late-join spectating</span></div>
+        </div>
+
+        <div class="panel launch-card">
+          <div class="launch-heading">
+            <div><span class="mini-label">ENTER THE NEXUS</span><h2>Start in seconds</h2></div>
+            <span class="live-chip"><i></i> LIVE</span>
+          </div>
+          <label for="nameInput">Runner name</label>
+          <input id="nameInput" maxlength="18" autocomplete="nickname" placeholder="e.g. Nova" />
+          <button id="createBtn" class="primary huge" type="button"><span>Create a room</span><b>→</b></button>
+          <div class="divider"><span>or join a friend</span></div>
+          <div class="join-row">
+            <input id="codeInput" maxlength="6" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="ROOM CODE" aria-label="Room code" />
+            <button id="joinBtn" type="button">Join</button>
+          </div>
+          <p id="homeError" class="error" role="alert" aria-live="polite"></p>
+        </div>
+      </div>
+
+      <div class="rules-showcase" aria-label="Core game rules">
+        <article><span class="step">01</span><div class="rule-icon cyan">◆</div><h3>Grab energy</h3><p>Collect up to <strong>4 shards</strong>. Gold Prisms are worth <strong>3 points</strong>.</p></article>
+        <article><span class="step">02</span><div class="rule-icon violet">◎</div><h3>Bank at the Nexus</h3><p>Touch the center with cargo to lock in points. A full 4-shard load earns a <strong>+2 bonus</strong>.</p></article>
+        <article><span class="step">03</span><div class="rule-icon pink">◌</div><h3>Pulse rivals</h3><p>Use <strong>Space / PULSE</strong> nearby. You can knock loose their most valuable cargo.</p></article>
+        <article><span class="step">04</span><div class="rule-icon gold">⌛</div><h3>Win the round</h3><p>Highest banked score after <strong>90 seconds</strong> wins. Carried cargo does not count.</p></article>
+      </div>
+
+      <section class="tactics-band">
+        <div><span>RISK</span><strong>More cargo slows you down</strong><p>Carry four for the bonus, but become easier to chase.</p></div>
+        <div><span>CHAOS</span><strong>Prism Rifts erupt mid-round</strong><p>Race to the flashing portal for a 3-point Prism.</p></div>
+        <div><span>POWER</span><strong>Overdrive + Pulse Shields</strong><p>Temporary pickups change the fight without changing the core rules.</p></div>
+      </section>
+    </section>
+
+    <section id="lobby" class="screen" aria-labelledby="lobbyTitle">
+      <div class="room-hero">
+        <div>
+          <div class="eyebrow">ROOM CODE</div>
+          <div id="roomCode" class="room-code">------</div>
+          <p>Share this code or let a friend scan the QR. Each person opens the game on their own device.</p>
+        </div>
+        <div class="invite-actions">
+          <button id="copyBtn" class="primary compact" type="button">Copy invite link</button>
+          <button id="leaveLobbyBtn" class="ghost compact" type="button">Leave room</button>
+        </div>
+      </div>
+
+      <div class="lobby-layout">
+        <div class="panel roster-card">
+          <div class="section-head">
+            <div><span class="mini-label">READY ROOM</span><h2 id="lobbyTitle">Runners connected</h2></div>
+            <span class="status-pill"><i></i><strong id="playerCount">1/8</strong></span>
+          </div>
+          <div id="playerList" class="player-list"></div>
+          <div class="start-zone">
+            <button id="startBtn" class="primary huge" type="button" disabled>Need 2 players</button>
+            <p id="lobbyHint" class="hint">Only the host can start. Round length: 90 seconds.</p>
+          </div>
+        </div>
+
+        <aside class="panel qr-card">
+          <span class="mini-label">JOIN FROM A PHONE</span>
+          <div class="qr-shell"><img id="qrImage" alt="QR code to join this Rift Runners room" /></div>
+          <strong>Scan to open this room</strong>
+          <p>No account. No install. Same live arena.</p>
+          <div class="lobby-rule-mini"><span>◆</span><p><b>Bank points</b> at the center. Do not finish the round holding unbanked cargo.</p></div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="game" class="screen" aria-labelledby="gameStatusLabel">
+      <div class="game-topline">
+        <div class="hud-cluster">
+          <div class="hud-box"><span>TIME</span><strong id="timeHud">1:30</strong></div>
+          <div class="hud-box"><span>SCORE</span><strong id="scoreHud">0</strong></div>
+          <div class="hud-box cargo-box"><span>CARGO</span><div id="cargoHud" class="cargo-pips" aria-label="Cargo 0 of 4"></div><small id="cargoValue">0 pts</small></div>
+          <div class="hud-box ability-box"><span>PULSE</span><strong id="pulseHud">READY</strong></div>
+        </div>
+        <div class="game-tools"><span id="pingHud" class="ping">-- ms</span><button id="gameRulesBtn" class="ghost small" type="button">Rules</button></div>
+      </div>
+
+      <div class="arena-shell">
+        <canvas id="arena" width="1280" height="800" aria-label="Rift Runners game arena"></canvas>
+        <div id="countdown" class="countdown hidden" aria-live="assertive">3</div>
+        <div id="eventBanner" class="event-banner hidden" role="status" aria-live="polite"></div>
+        <div id="spectatorBanner" class="spectator-banner hidden">SPECTATING · YOU'LL RACE NEXT ROUND</div>
+        <div id="mobileControls" class="mobile-controls" aria-label="Mobile controls">
+          <div class="dpad" aria-label="Movement pad">
+            <button type="button" data-dir="up" aria-label="Move up">▲</button>
+            <button type="button" data-dir="left" aria-label="Move left">◀</button>
+            <button type="button" data-dir="down" aria-label="Move down">▼</button>
+            <button type="button" data-dir="right" aria-label="Move right">▶</button>
+          </div>
+          <button id="mobilePulse" class="pulse-btn" type="button" aria-label="Pulse nearby rivals"><span>PULSE</span><small id="mobilePulseCd">READY</small></button>
+        </div>
+      </div>
+
+      <div class="under-arena">
+        <div class="panel leaderboard-card">
+          <div class="mini-label">LIVE LEADERBOARD</div>
+          <div id="leaderboard" class="leaderboard"></div>
+        </div>
+        <div class="panel intel-card">
+          <div class="mini-label">NEXUS INTEL</div>
+          <div id="intelText" class="intel-text">Prism Rift charging…</div>
+          <div id="powerStatus" class="power-status"></div>
+          <div class="desktop-help"><kbd>WASD</kbd> move <span>·</span> <kbd>Space</kbd> pulse</div>
+        </div>
+        <div class="panel feed-card">
+          <div class="mini-label">ARENA FEED</div>
+          <div id="feed" class="feed" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="results" class="screen" aria-labelledby="resultTitle">
+      <div class="result-hero">
+        <div class="eyebrow">ROUND COMPLETE</div>
+        <h2 id="resultTitle">NEXUS LOCKED</h2>
+        <p id="resultSubtitle">Final banked energy</p>
+      </div>
+      <div class="results-layout">
+        <div class="panel final-card">
+          <div id="finalBoard" class="final-board"></div>
+          <div class="result-actions">
+            <button id="rematchBtn" class="primary huge" type="button">Run it back</button>
+            <button id="leaveResultBtn" class="ghost huge" type="button">Leave room</button>
+          </div>
+          <p id="resultHint" class="hint"></p>
+        </div>
+        <aside class="panel awards-card">
+          <span class="mini-label">ROUND HIGHLIGHTS</span>
+          <div id="awards" class="awards"></div>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="rulesDialog">
+    <form method="dialog">
+      <button class="close" value="cancel" aria-label="Close rules">×</button>
+      <div class="eyebrow">60-SECOND EXPLANATION</div>
+      <h2>How to play Rift Runners</h2>
+      <ol class="dialog-rules">
+        <li><b>Collect.</b> Run over cyan shards. You can carry four. A gold Prism is worth 3 points.</li>
+        <li><b>Bank.</b> Touch the central Nexus to convert your cargo into permanent score. Four cargo items at once earns +2.</li>
+        <li><b>Attack.</b> Press <kbd>Space</kbd> on desktop or tap <b>PULSE</b> on mobile. Nearby rivals can drop their most valuable cargo. Pulse recharges in 6 seconds.</li>
+        <li><b>Use powerups.</b> Green Overdrive boosts speed. Purple Shield blocks one Pulse while active.</li>
+        <li><b>Win.</b> Highest <em>banked</em> score after 90 seconds wins. Anything still in your cargo at the buzzer is worth zero.</li>
+      </ol>
+      <div class="tip"><b>High-risk play:</b> a full four-item load earns +2, but every carried item slows you slightly.</div>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/client.js"></script>
+</body>
+</html>
