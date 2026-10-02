@@ -1,0 +1,23 @@
+{
+  "name": "rift-runners-nexus",
+  "version": "2.0.0",
+  "private": true,
+  "description": "Rift Runners: Nexus — a polished real-time multiplayer browser arena game for 2–8 players.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node test/smoke.js",
+    "check": "node --check server.js && node --check public/client.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "qrcode": "^1.5.4",
+    "socket.io": "^4.8.1"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1"
+  }
+}

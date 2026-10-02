@@ -1,0 +1,7 @@
+services:
+  - type: web
+    name: rift-runners-nexus
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
