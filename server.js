@@ -274,7 +274,7 @@ function addOrReconnectPlayer(room, socket, name, token, joiningExisting = true)
       connected: true,
       spectator,
       removeTimer: null,
-      stats: { pickups: 0, deposits: 0, pulseHits: 0, prisms: 0, bonuses: 0 },
+      stats: { pickups: 0, deposits: 0, pulseHits: 0, prisms: 0, bonuses: 0, banked: 0, cargoLost: 0, shieldsBroken: 0, maxCargo: 0 },
     };
     room.players.set(token, player);
   }
@@ -307,7 +307,7 @@ function prepareRound(room) {
     player.boostUntil = 0;
     player.shieldUntil = 0;
     player.input = { up: false, down: false, left: false, right: false };
-    player.stats = { pickups: 0, deposits: 0, pulseHits: 0, prisms: 0, bonuses: 0 };
+    player.stats = { pickups: 0, deposits: 0, pulseHits: 0, prisms: 0, bonuses: 0, banked: 0, cargoLost: 0, shieldsBroken: 0, maxCargo: 0 };
     player.spectator = !player.connected;
     if (player.connected) {
       const p = spawnPoint(spawnIndex++);
@@ -392,6 +392,7 @@ function handleShardPickup(room, player) {
       room.shards.splice(i, 1);
       player.cargo.push({ type: shard.type, value: shard.value });
       player.stats.pickups += 1;
+      player.stats.maxCargo = Math.max(player.stats.maxCargo || 0, player.cargo.length);
       io.to(room.code).emit('eventFx', { type: shard.type === 'prism' ? 'prismPickup' : 'pickup', x: player.x, y: player.y, playerId: player.id });
       if (shard.type === 'prism') feed(room, `${player.name} grabbed a 3-point Prism.`, 'prism');
       return;
@@ -423,10 +424,11 @@ function handleDeposit(room, player) {
   player.score += total;
   player.stats.deposits += 1;
   player.stats.prisms += prismCount;
+  player.stats.banked = (player.stats.banked || 0) + total;
   if (bonus) player.stats.bonuses += 1;
   player.cargo = [];
   refillNormalShards(room);
-  io.to(room.code).emit('eventFx', { type: 'deposit', x: CORE.x, y: CORE.y, playerId: player.id, amount: total, bonus });
+  io.to(room.code).emit('eventFx', { type: 'deposit', x: CORE.x, y: CORE.y, playerId: player.id, amount: total, bonus, base, prismCount });
   if (total >= 5 || bonus) feed(room, `${player.name} banked ${total} points${bonus ? ' with a +2 full-load bonus' : ''}.`, 'score');
 }
 
@@ -569,6 +571,7 @@ io.on('connection', socket => {
         rival.shieldUntil = 0;
         result = 'shield';
         meaningfulHits += 1;
+        player.stats.shieldsBroken = (player.stats.shieldsBroken || 0) + 1;
         feed(room, `${player.name} shattered ${rival.name}'s Pulse Shield.`, 'hit');
       } else if (rival.cargo.length) {
         let bestIndex = 0;
@@ -576,6 +579,7 @@ io.on('connection', socket => {
           if (rival.cargo[i].value > rival.cargo[bestIndex].value) bestIndex = i;
         }
         const [item] = rival.cargo.splice(bestIndex, 1);
+        rival.stats.cargoLost = (rival.stats.cargoLost || 0) + item.value;
         dropCargoItem(room, rival, item);
         result = item.type === 'prism' ? 'prismDrop' : 'drop';
         meaningfulHits += 1;
@@ -635,7 +639,7 @@ io.on('connection', socket => {
 
 app.get('/health', (_req, res) => {
   const players = Array.from(rooms.values()).reduce((sum, room) => sum + connectedPlayers(room).length, 0);
-  res.json({ ok: true, rooms: rooms.size, players, version: '2.0.0' });
+  res.json({ ok: true, rooms: rooms.size, players, version: '3.0.0' });
 });
 
 app.get('/api/qr', async (req, res) => {

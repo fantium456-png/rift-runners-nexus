@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="theme-color" content="#070a13" />
-  <meta name="description" content="Rift Runners: Nexus — a live 2–8 player browser arena. Collect energy, bank it at the Nexus, and pulse rivals before they cash out." />
-  <title>Rift Runners: Nexus</title>
+  <meta name="description" content="Rift Runners: Nexus — a cinematic live multiplayer arena for 2–8 players. Outrun rivals, bank energy, and pulse their cargo loose before the buzzer." />
+  <title>Rift Runners: Nexus — Live Multiplayer Arena</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23070a13'/%3E%3Ccircle cx='32' cy='32' r='18' fill='none' stroke='%2361e8ff' stroke-width='6'/%3E%3Cpath d='M39 10 24 33h10l-7 21 17-27H34z' fill='%23ff65dc'/%3E%3C/svg%3E" />
   <link rel="stylesheet" href="/styles.css" />
 </head>
@@ -110,7 +110,9 @@
 
       <div class="arena-shell">
         <canvas id="arena" width="1280" height="800" aria-label="Rift Runners game arena"></canvas>
-        <div id="countdown" class="countdown hidden" aria-live="assertive">3</div>
+        <div id="impactFlash" class="impact-flash" aria-hidden="true"></div>
+        <div id="countdown" class="countdown hidden" aria-live="assertive"><span class="countdown-kicker">ROUND STARTING</span><strong id="countdownNumber">3</strong><small>BANK ENERGY · PULSE RIVALS</small></div>
+        <div id="finalWarning" class="final-warning hidden" aria-live="assertive"><span>FINAL SURGE</span><strong id="finalWarningNumber">10</strong><small>BANK IT NOW</small></div>
         <div id="eventBanner" class="event-banner hidden" role="status" aria-live="polite"></div>
         <div id="spectatorBanner" class="spectator-banner hidden">SPECTATING · YOU'LL RACE NEXT ROUND</div>
         <div id="mobileControls" class="mobile-controls" aria-label="Mobile controls">
@@ -148,16 +150,21 @@
         <h2 id="resultTitle">NEXUS LOCKED</h2>
         <p id="resultSubtitle">Final banked energy</p>
       </div>
+      <div id="podium" class="podium" aria-label="Top three finishers"></div>
       <div class="results-layout">
         <div class="panel final-card">
           <div id="finalBoard" class="final-board"></div>
           <div class="result-actions">
             <button id="rematchBtn" class="primary huge" type="button">Run it back</button>
             <button id="leaveResultBtn" class="ghost huge" type="button">Leave room</button>
+            <button id="shareResultBtn" class="ghost share-result" type="button">Share result</button>
           </div>
           <p id="resultHint" class="hint"></p>
         </div>
         <aside class="panel awards-card">
+          <span class="mini-label">YOUR RUN</span>
+          <div id="personalRun" class="personal-run"></div>
+          <div class="awards-divider"></div>
           <span class="mini-label">ROUND HIGHLIGHTS</span>
           <div id="awards" class="awards"></div>
         </aside>
@@ -177,7 +184,7 @@
         <li><b>Use powerups.</b> Green Overdrive boosts speed. Purple Shield blocks one Pulse while active.</li>
         <li><b>Win.</b> Highest <em>banked</em> score after 90 seconds wins. Anything still in your cargo at the buzzer is worth zero.</li>
       </ol>
-      <div class="tip"><b>High-risk play:</b> a full four-item load earns +2, but every carried item slows you slightly.</div>
+      <div class="tip"><b>High-risk play:</b> a full four-item load earns +2, but every carried item slows you slightly. The last 10 seconds trigger the <b>Final Surge</b> visual warning — bank whatever you are carrying before the buzzer.</div>
     </form>
   </dialog>
 

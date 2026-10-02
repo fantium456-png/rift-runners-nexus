@@ -11,11 +11,11 @@
     roomCode: $('#roomCode'), playerCount: $('#playerCount'), playerList: $('#playerList'), start: $('#startBtn'), lobbyHint: $('#lobbyHint'),
     copy: $('#copyBtn'), leaveLobby: $('#leaveLobbyBtn'), qr: $('#qrImage'), connection: $('#connectionPill'), sound: $('#soundBtn'),
     rules: $('#rulesBtn'), gameRules: $('#gameRulesBtn'), rulesDialog: $('#rulesDialog'),
-    canvas: $('#arena'), countdown: $('#countdown'), eventBanner: $('#eventBanner'), spectatorBanner: $('#spectatorBanner'),
+    canvas: $('#arena'), arenaShell: $('.arena-shell'), countdown: $('#countdown'), countdownNumber: $('#countdownNumber'), finalWarning: $('#finalWarning'), finalWarningNumber: $('#finalWarningNumber'), impactFlash: $('#impactFlash'), eventBanner: $('#eventBanner'), spectatorBanner: $('#spectatorBanner'),
     time: $('#timeHud'), score: $('#scoreHud'), cargo: $('#cargoHud'), cargoValue: $('#cargoValue'), pulse: $('#pulseHud'), ping: $('#pingHud'),
     leaderboard: $('#leaderboard'), intel: $('#intelText'), powerStatus: $('#powerStatus'), feed: $('#feed'),
     mobileControls: $('#mobileControls'), mobilePulse: $('#mobilePulse'), mobilePulseCd: $('#mobilePulseCd'),
-    resultTitle: $('#resultTitle'), resultSubtitle: $('#resultSubtitle'), finalBoard: $('#finalBoard'), awards: $('#awards'), rematch: $('#rematchBtn'), resultHint: $('#resultHint'), leaveResult: $('#leaveResultBtn'),
+    resultTitle: $('#resultTitle'), resultSubtitle: $('#resultSubtitle'), podium: $('#podium'), finalBoard: $('#finalBoard'), personalRun: $('#personalRun'), awards: $('#awards'), rematch: $('#rematchBtn'), resultHint: $('#resultHint'), leaveResult: $('#leaveResultBtn'), shareResult: $('#shareResultBtn'),
     toast: $('#toast'),
   };
 
@@ -36,6 +36,13 @@
   let input = { up:false, down:false, left:false, right:false };
   let feedItems = [];
   let fx = [];
+  let particles = [];
+  let floatingTexts = [];
+  let shake = 0;
+  let flashTimer = null;
+  let lastCountdownValue = null;
+  let lastFinalSecond = null;
+  let celebratedRound = null;
   let renderPlayers = new Map();
   let bannerTimer = null;
   let toastTimer = null;
@@ -106,11 +113,36 @@
     toastTimer = setTimeout(() => els.toast.classList.remove('show'), 2200);
   }
 
-  function banner(message, ms = 2600) {
+  function banner(message, ms = 2600, kind = 'info') {
     clearTimeout(bannerTimer);
     els.eventBanner.textContent = message;
-    els.eventBanner.classList.remove('hidden');
+    els.eventBanner.className = `event-banner ${kind}`;
     bannerTimer = setTimeout(() => els.eventBanner.classList.add('hidden'), ms);
+  }
+
+  function haptic(pattern = 18) {
+    if ('vibrate' in navigator) { try { navigator.vibrate(pattern); } catch (_) {} }
+  }
+
+  function flash(kind = 'cyan') {
+    clearTimeout(flashTimer);
+    els.impactFlash.className = `impact-flash show ${kind}`;
+    flashTimer = setTimeout(() => { els.impactFlash.className = 'impact-flash'; }, 180);
+  }
+
+  function burst(x, y, color, count = 18, speed = 150, life = 520) {
+    const born = performance.now();
+    for (let i = 0; i < count; i++) {
+      const a = (Math.PI * 2 * i / count) + Math.random() * .45;
+      const v = speed * (.45 + Math.random() * .8);
+      particles.push({ x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, color, born, life: life * (.7 + Math.random() * .6), size: 2 + Math.random() * 3 });
+    }
+    particles = particles.slice(-240);
+  }
+
+  function floatText(x, y, text, color = '#fff', big = false) {
+    floatingTexts.push({ x, y, text, color, big, born: performance.now(), life: big ? 1100 : 820 });
+    floatingTexts = floatingTexts.slice(-35);
   }
 
   function ensureAudio() {
@@ -227,6 +259,17 @@
   }
   els.leaveLobby.addEventListener('click', leaveRoom);
   els.leaveResult.addEventListener('click', leaveRoom);
+  els.shareResult.addEventListener('click', async () => {
+    const player = me();
+    if (!room || !player) return;
+    const rank = room.players.filter(p => !p.spectator).slice().sort((a,b) => b.score-a.score || a.name.localeCompare(b.name)).findIndex(p => p.id === playerId) + 1;
+    const text = `I scored ${player.score} points and finished ${ordinal(rank)} in Rift Runners: Nexus. Can you beat me? ${inviteUrl(room.code)}`;
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) {
+      const temp = document.createElement('textarea'); temp.value = text; temp.style.position='fixed'; temp.style.opacity='0'; document.body.appendChild(temp); temp.select(); document.execCommand('copy'); temp.remove();
+    }
+    toast('Result + rematch link copied');
+  });
 
   els.start.addEventListener('click', () => {
     ensureAudio();
@@ -285,22 +328,68 @@
 
   socket.on('room', data => setRoom(data));
   socket.on('state', data => setRoom(data));
-  socket.on('roundCountdown', data => { setRoom(data); banner(`Round ${data.round} starts now`, 2000); tone(260,.09,'square',.012); });
-  socket.on('roundStarted', data => { setRoom(data); banner('GO — bank the most energy!', 1800); tone(620,.09,'square',.018); tone(920,.14,'sine',.018,.08); });
-  socket.on('roundEnded', data => { setRoom(data); tone(350,.12,'triangle',.02); tone(520,.12,'triangle',.02,.08); tone(760,.2,'triangle',.025,.16); });
+  socket.on('roundCountdown', data => { setRoom(data); lastCountdownValue = null; lastFinalSecond = null; celebratedRound = null; banner(`ROUND ${data.round} · GET READY`, 1800, 'start'); tone(220,.1,'square',.013); haptic(18); });
+  socket.on('roundStarted', data => { setRoom(data); banner('GO! · BANK THE MOST ENERGY', 1900, 'go'); flash('cyan'); haptic([25,35,35]); shake = Math.max(shake, 7); tone(620,.09,'square',.018); tone(920,.14,'sine',.018,.08); });
+  socket.on('roundEnded', data => { setRoom(data); flash('gold'); haptic([35,40,55]); tone(350,.12,'triangle',.02); tone(520,.12,'triangle',.02,.08); tone(760,.2,'triangle',.025,.16); });
   socket.on('feed', item => {
     feedItems.unshift(item);
     feedItems = feedItems.slice(0, 5);
     renderFeed();
-    if (item.kind === 'prism') banner(item.message, 2800);
+    if (item.kind === 'prism') banner(item.message, 3000, 'prism');
   });
   socket.on('eventFx', event => {
     const t = performance.now();
-    if (event.type === 'pulse') fx.push({ ...event, born:t, life:520 });
-    else if (event.type === 'rift') fx.push({ ...event, born:t, life:1200 });
-    else fx.push({ ...event, born:t, life:650 });
-    fx = fx.slice(-45);
+    if (event.type === 'pulse') fx.push({ ...event, born:t, life:620 });
+    else if (event.type === 'rift') fx.push({ ...event, born:t, life:1500 });
+    else fx.push({ ...event, born:t, life:820 });
+    fx = fx.slice(-55);
     sfx(event.type);
+
+    const mine = event.playerId === playerId;
+    if (event.type === 'pickup') {
+      burst(event.x, event.y, '#61e8ff', mine ? 12 : 7, 105, 420);
+      if (mine) floatText(event.x, event.y - 20, '+SHARD', '#9ff4ff');
+    }
+    if (event.type === 'prismPickup') {
+      burst(event.x, event.y, '#ffe274', 28, 190, 720);
+      if (mine) { banner('PRISM SECURED · 3 ENERGY', 1800, 'prism'); flash('gold'); haptic([20,25,20]); floatText(event.x, event.y - 24, 'PRISM +3', '#ffe274', true); }
+    }
+    if (event.type === 'deposit') {
+      burst(event.x, event.y, event.bonus ? '#ffe274' : '#77ff9a', mine ? 38 : 22, 240, 850);
+      floatText(event.x, event.y - 34, `+${event.amount}`, event.bonus ? '#ffe274' : '#9effb7', true);
+      if (mine) {
+        banner(event.bonus ? `FULL LOAD BANKED · +${event.amount} · BONUS!` : `BANKED +${event.amount}`, 1700, event.bonus ? 'bonus' : 'score');
+        flash(event.bonus ? 'gold' : 'green');
+        shake = Math.max(shake, event.bonus ? 10 : 6);
+        haptic(event.bonus ? [25,20,25] : 22);
+      }
+    }
+    if (event.type === 'powerup') {
+      const color = event.power === 'boost' ? '#77ff9a' : '#a98bff';
+      burst(event.x, event.y, color, 20, 150, 620);
+      if (mine) { banner(event.power === 'boost' ? 'OVERDRIVE ONLINE' : 'PULSE SHIELD ONLINE', 1700, event.power === 'boost' ? 'boost' : 'shield'); haptic(18); }
+    }
+    if (event.type === 'rift') {
+      burst(event.x, event.y, '#ffe274', 44, 220, 1100);
+      banner('PRISM RIFT OPEN · 3-POINT PRISM LIVE', 3200, 'prism');
+      flash('gold');
+      shake = Math.max(shake, 7);
+      haptic([20,30,20]);
+    }
+    if (event.type === 'pulse') {
+      burst(event.x, event.y, '#ff65dc', 22, 210, 620);
+      if (mine) { shake = Math.max(shake, 5); haptic(16); }
+      const target = (event.targets || []).find(target => target.id === playerId);
+      if (target) {
+        shake = Math.max(shake, 13);
+        flash('pink');
+        haptic([35,20,45]);
+        const copy = target.result === 'shield' ? 'SHIELD BROKEN!' : target.result === 'prismDrop' ? 'PRISM KNOCKED LOOSE!' : target.result === 'drop' ? 'CARGO KNOCKED LOOSE!' : 'PULSE IMPACT!';
+        banner(copy, 1550, 'danger');
+        const self = me();
+        if (self) floatText(self.x, self.y - 30, target.result === 'shield' ? 'SHIELD BREAK' : 'HIT!', '#ff9de8', true);
+      }
+    }
   });
 
   socket.on('connect', () => {
@@ -396,9 +485,37 @@
 
     if (room.state === 'countdown') {
       const left = Math.max(0, room.startsAt - t);
-      els.countdown.textContent = left < 500 ? 'GO' : Math.max(1, Math.ceil(left / 1000));
+      const value = left < 420 ? 'GO' : Math.max(1, Math.ceil(left / 1000));
+      els.countdownNumber.textContent = value;
       els.countdown.classList.remove('hidden');
-    } else els.countdown.classList.add('hidden');
+      if (value !== lastCountdownValue) {
+        lastCountdownValue = value;
+        els.countdown.classList.remove('tick');
+        void els.countdown.offsetWidth;
+        els.countdown.classList.add('tick');
+        if (value === 'GO') { tone(880,.12,'square',.025); haptic([22,22,38]); }
+        else { tone(value === 1 ? 520 : 330,.08,'square',.016); haptic(14); }
+      }
+    } else {
+      els.countdown.classList.add('hidden');
+      lastCountdownValue = null;
+    }
+
+    const inFinalSurge = room.state === 'playing' && seconds > 0 && seconds <= 10;
+    els.finalWarning.classList.toggle('hidden', !inFinalSurge);
+    els.arenaShell.classList.toggle('final-surge', inFinalSurge);
+    if (inFinalSurge) {
+      els.finalWarningNumber.textContent = seconds;
+      if (lastFinalSecond !== seconds) {
+        lastFinalSecond = seconds;
+        els.finalWarning.classList.remove('tick');
+        void els.finalWarning.offsetWidth;
+        els.finalWarning.classList.add('tick');
+        tone(seconds <= 3 ? 760 : 210,.055,seconds <= 3 ? 'square' : 'sine',seconds <= 3 ? .022 : .012);
+        if (seconds === 10) { banner('FINAL SURGE · BANK YOUR CARGO', 2200, 'danger'); flash('pink'); haptic([25,25,25]); }
+        if (seconds <= 3) haptic(18);
+      }
+    } else lastFinalSecond = null;
     renderLeaderboard();
   }
 
@@ -416,27 +533,78 @@
     if (!room) return;
     const players = room.players.filter(p => !p.spectator).slice().sort((a,b) => b.score-a.score || a.name.localeCompare(b.name));
     const winners = new Set(room.winnerIds || []);
+    const mine = players.find(p => p.id === playerId);
+    const myRank = Math.max(0, players.findIndex(p => p.id === playerId)) + 1;
     const myWin = winners.has(playerId);
     const tie = winners.size > 1;
-    els.resultTitle.textContent = myWin ? (tie ? 'TIED AT THE TOP' : 'NEXUS CHAMPION') : 'NEXUS LOCKED';
-    els.resultSubtitle.textContent = tie ? `${winners.size}-way tie · final banked energy` : 'Final banked energy · carried cargo was not scored';
-    els.finalBoard.innerHTML = players.map((p,i) => `<div class="final-row ${winners.has(p.id)?'winner':''}">
-      <span class="final-medal">${i===0?'◈':i===1?'◇':i===2?'·':' '}</span><span class="final-dot" style="color:${p.color}"></span>
-      <span class="final-name">${escapeHtml(p.name)}${p.id===playerId?' · YOU':''}<small>${p.stats.deposits} banks · ${p.stats.pulseHits} pulse hits · ${p.stats.prisms} prisms</small></span>
+
+    if (myWin) els.resultTitle.textContent = tie ? 'TIED AT THE TOP' : 'NEXUS CHAMPION';
+    else if (myRank === 2) els.resultTitle.textContent = 'ONE STEP AWAY';
+    else if (myRank === 3) els.resultTitle.textContent = 'PODIUM FINISH';
+    else els.resultTitle.textContent = 'NEXUS LOCKED';
+    els.resultSubtitle.textContent = mine
+      ? `${ordinal(myRank)} place · ${mine.score} banked energy${tie ? ` · ${winners.size}-way tie` : ''}`
+      : (tie ? `${winners.size}-way tie · final banked energy` : 'Final banked energy · carried cargo was not scored');
+
+    const top = players.slice(0,3);
+    const podiumOrder = top.length === 1 ? [top[0]] : top.length === 2 ? [top[1], top[0]] : [top[1], top[0], top[2]];
+    els.podium.innerHTML = podiumOrder.map(p => {
+      const rank = players.indexOf(p) + 1;
+      return `<div class="podium-slot rank-${rank} ${winners.has(p.id)?'winner':''} ${p.id===playerId?'me':''}">
+        <span class="podium-rank">${rank===1?'◈':rank===2?'◇':'△'}</span>
+        <span class="podium-avatar" style="--runner:${p.color};color:${p.color}">${escapeHtml(p.name.slice(0,1).toUpperCase())}</span>
+        <strong>${escapeHtml(p.name)}${p.id===playerId?' · YOU':''}</strong>
+        <small>${p.score} pts</small>
+        <i>${rank===1?'CHAMPION':rank===2?'2ND':'3RD'}</i>
+      </div>`;
+    }).join('');
+
+    els.finalBoard.innerHTML = players.map((p,i) => `<div class="final-row ${winners.has(p.id)?'winner':''} ${p.id===playerId?'me':''}">
+      <span class="final-medal">${i===0?'◈':i===1?'◇':i===2?'△':i+1}</span><span class="final-dot" style="color:${p.color}"></span>
+      <span class="final-name">${escapeHtml(p.name)}${p.id===playerId?' · YOU':''}<small>${p.stats.deposits} banks · ${p.stats.pulseHits} pulse hits · ${p.stats.prisms} prisms · ${p.stats.bonuses||0} full-load bonuses</small></span>
       <strong class="final-score">${p.score}</strong></div>`).join('');
 
-    const by = (key) => players.slice().sort((a,b) => (b.stats[key]||0)-(a.stats[key]||0))[0];
-    const collector = by('pickups'), hunter = by('pulseHits'), prism = by('prisms');
+    const stat = (key) => Number(mine?.stats?.[key] || 0);
+    els.personalRun.innerHTML = mine ? [
+      ['BANKED', mine.score, 'pts'],
+      ['BANKS', stat('deposits'), 'runs'],
+      ['PULSE HITS', stat('pulseHits'), 'hits'],
+      ['PRISMS', stat('prisms'), 'banked'],
+      ['FULL LOAD', stat('bonuses'), 'bonuses'],
+      ['CARGO LOST', stat('cargoLost'), 'energy'],
+    ].map(([label,value,suffix]) => `<div class="personal-stat"><span>${label}</span><strong>${value}</strong><small>${suffix}</small></div>`).join('') : '<p class="hint">Spectators do not receive round stats.</p>';
+
+    const by = (key) => players.slice().sort((a,b) => (b.stats[key]||0)-(a.stats[key]||0) || b.score-a.score)[0];
+    const collector = by('pickups'), hunter = by('pulseHits'), prism = by('prisms'), banker = by('deposits');
     els.awards.innerHTML = [
       ['ENERGY HUNTER', collector, collector?.stats.pickups, 'pickups'],
       ['PULSE ACE', hunter, hunter?.stats.pulseHits, 'hits'],
       ['RIFT RAIDER', prism, prism?.stats.prisms, 'prisms banked'],
+      ['NEXUS BANKER', banker, banker?.stats.deposits, 'bank runs'],
     ].map(([label,p,val,suffix]) => `<div class="award"><span>${label}</span><strong>${p ? escapeHtml(p.name) : '—'}</strong><small>${val || 0} ${suffix}</small></div>`).join('');
 
     const host = isHost();
     els.rematch.disabled = !host || connectedCount() < 2;
     els.rematch.textContent = host ? (connectedCount() < 2 ? 'Need 2 players' : 'Run it back') : 'Waiting for host';
     els.resultHint.textContent = host ? 'Same room, same players. Start another round when ready.' : 'The host can launch the next round.';
+
+    if (celebratedRound !== room.round) {
+      celebratedRound = room.round;
+      const results = $('#results');
+      results.classList.remove('celebrate');
+      void results.offsetWidth;
+      results.classList.add('celebrate');
+      setTimeout(() => results.classList.remove('celebrate'), 2200);
+      if (myWin) { haptic([30,35,30,35,55]); tone(660,.1,'triangle',.018); tone(880,.14,'triangle',.022,.08); tone(1100,.2,'sine',.02,.18); }
+    }
+  }
+
+  function ordinal(n) {
+    const mod10 = n % 10, mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return `${n}st`;
+    if (mod10 === 2 && mod100 !== 12) return `${n}nd`;
+    if (mod10 === 3 && mod100 !== 13) return `${n}rd`;
+    return `${n}th`;
   }
 
   function resizeCanvasForDpr() {
@@ -454,7 +622,6 @@
   }
 
   function drawArena(t) {
-    ctx.clearRect(0,0,1280,800);
     const grad = ctx.createRadialGradient(640,400,40,640,400,760);
     grad.addColorStop(0,'#0d1427'); grad.addColorStop(.55,'#080d19'); grad.addColorStop(1,'#05070e');
     ctx.fillStyle = grad; ctx.fillRect(0,0,1280,800);
@@ -522,6 +689,18 @@
     const x=rp.x,y=rp.y;
     ctx.save();ctx.translate(x,y);
     if(!p.connected){ctx.globalAlpha=.3}
+    const racers = (room?.players || []).filter(r => !r.spectator && r.connected);
+    const bestScore = racers.length ? Math.max(...racers.map(r => r.score)) : 0;
+    const leaders = racers.filter(r => r.score === bestScore && bestScore > 0);
+    const soleLeader = leaders.length === 1 && leaders[0].id === p.id;
+    if (soleLeader) {
+      ctx.save(); ctx.translate(0,-53); ctx.fillStyle='#ffe274'; ctx.shadowColor='#ffe274'; ctx.shadowBlur=10;
+      ctx.beginPath(); ctx.moveTo(-11,8); ctx.lineTo(-8,-5); ctx.lineTo(-2,1); ctx.lineTo(0,-9); ctx.lineTo(4,1); ctx.lineTo(10,-5); ctx.lineTo(11,8); ctx.closePath(); ctx.fill(); ctx.shadowBlur=0; ctx.restore();
+    }
+    if (p.cargoCount === 4) {
+      ctx.strokeStyle='rgba(255,101,220,.68)'; ctx.lineWidth=3; ctx.setLineDash([7,7]); ctx.lineDashOffset=-t/55;
+      ctx.beginPath(); ctx.arc(0,0,39+Math.sin(t/120)*2,0,Math.PI*2); ctx.stroke(); ctx.setLineDash([]);
+    }
     if(p.boostUntil>serverNow()){
       ctx.strokeStyle='rgba(119,255,154,.25)';ctx.lineWidth=8;ctx.beginPath();ctx.arc(0,0,29+Math.sin(t/100)*2,0,Math.PI*2);ctx.stroke();
     }
@@ -532,26 +711,75 @@
     const g=ctx.createRadialGradient(-7,-8,2,0,0,18);g.addColorStop(0,'rgba(255,255,255,.62)');g.addColorStop(1,'rgba(255,255,255,0)');ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,18,0,Math.PI*2);ctx.fill();
     ctx.strokeStyle=p.id===playerId?'#ffffff':'rgba(255,255,255,.35)';ctx.lineWidth=p.id===playerId?3:1.5;ctx.beginPath();ctx.arc(0,0,21,0,Math.PI*2);ctx.stroke();
     if(p.cargoCount){for(let i=0;i<p.cargoCount;i++){const a=-Math.PI/2+(i-(p.cargoCount-1)/2)*.38;const cx=Math.cos(a)*34,cy=Math.sin(a)*34;ctx.save();ctx.translate(cx,cy);ctx.rotate(Math.PI/4);ctx.fillStyle='#61e8ff';ctx.fillRect(-4,-4,8,8);ctx.restore()}}
-    ctx.textAlign='center';ctx.textBaseline='bottom';ctx.font='800 13px system-ui';ctx.fillStyle='#f6f8ff';ctx.shadowColor='#000';ctx.shadowBlur=5;ctx.fillText(p.name,0,-31);ctx.shadowBlur=0;ctx.font='900 10px system-ui';ctx.fillStyle='rgba(235,240,255,.8)';ctx.fillText(`${p.score} pts`,0,41);ctx.restore();
+    ctx.textAlign='center';ctx.textBaseline='bottom';ctx.font='800 13px system-ui';ctx.fillStyle='#f6f8ff';ctx.shadowColor='#000';ctx.shadowBlur=5;ctx.fillText(p.name,0,-31);ctx.shadowBlur=0;ctx.font='900 10px system-ui';ctx.fillStyle='rgba(235,240,255,.8)';ctx.fillText(`${p.score} pts`,0,41);if(p.cargoCount===4){ctx.font='1000 9px system-ui';ctx.fillStyle='#ff9fe7';ctx.fillText('FULL LOAD +2',0,55)}ctx.restore();
   }
 
   function drawFx(t) {
     fx = fx.filter(e => t-e.born < e.life);
-    for(const e of fx){const k=(t-e.born)/e.life;ctx.save();ctx.globalAlpha=1-k;
-      if(e.type==='pulse'){ctx.strokeStyle='#ff65dc';ctx.lineWidth=7*(1-k)+1;ctx.beginPath();ctx.arc(e.x,e.y,20+k*132,0,Math.PI*2);ctx.stroke()}
-      else if(e.type==='rift'){ctx.strokeStyle='#ffe274';ctx.lineWidth=6*(1-k)+1;ctx.beginPath();ctx.arc(e.x,e.y,12+k*70,0,Math.PI*2);ctx.stroke()}
-      else {const col=e.type==='deposit'?'#77ff9a':e.type==='prismPickup'?'#ffe274':e.type==='powerup'?'#a98bff':'#61e8ff';ctx.strokeStyle=col;ctx.lineWidth=4*(1-k)+1;ctx.beginPath();ctx.arc(e.x,e.y,10+k*38,0,Math.PI*2);ctx.stroke();if(e.type==='deposit'&&e.amount){ctx.fillStyle=col;ctx.font='1000 20px system-ui';ctx.textAlign='center';ctx.fillText(`+${e.amount}`,e.x,e.y-24-k*18)}}ctx.restore()}
+    for(const e of fx){
+      const k=(t-e.born)/e.life;
+      const ease=1-Math.pow(1-k,3);
+      ctx.save();ctx.globalAlpha=Math.max(0,1-k);
+      if(e.type==='pulse'){
+        ctx.strokeStyle='#ff65dc';
+        for(let ring=0; ring<3; ring++){
+          const rk=Math.max(0,Math.min(1,k-ring*.1));
+          ctx.globalAlpha=Math.max(0,(1-rk)*(.9-ring*.18));ctx.lineWidth=8*(1-rk)+1;
+          ctx.beginPath();ctx.arc(e.x,e.y,20+rk*132,0,Math.PI*2);ctx.stroke();
+        }
+        ctx.setLineDash([7,10]);ctx.lineWidth=2;ctx.globalAlpha=(1-k)*.7;
+        for(const target of e.targets||[]){
+          const rp=renderPlayers.get(target.id); if(!rp) continue;
+          ctx.beginPath();ctx.moveTo(e.x,e.y);ctx.lineTo(rp.x,rp.y);ctx.stroke();
+        }
+        ctx.setLineDash([]);
+      }
+      else if(e.type==='rift'){
+        ctx.translate(e.x,e.y);ctx.rotate(t/500);
+        for(let r=0;r<4;r++){ctx.strokeStyle=r%2?'#ffe274':'#ff65dc';ctx.lineWidth=7*(1-k)+1;ctx.globalAlpha=(1-k)*(.8-r*.12);ctx.beginPath();ctx.arc(0,0,12+ease*(52+r*13),r*.65,Math.PI*1.35+r*.65);ctx.stroke()}
+      }
+      else {
+        const col=e.type==='deposit'?'#77ff9a':e.type==='prismPickup'?'#ffe274':e.type==='powerup'?'#a98bff':'#61e8ff';
+        ctx.strokeStyle=col;ctx.lineWidth=5*(1-k)+1;ctx.beginPath();ctx.arc(e.x,e.y,10+ease*45,0,Math.PI*2);ctx.stroke();
+        if(e.type==='deposit'){
+          ctx.globalAlpha=(1-k)*.75;ctx.strokeStyle=e.bonus?'#ffe274':'#77ff9a';
+          for(let i=0;i<10;i++){const a=i*Math.PI/5+t/900;const r1=38+ease*18,r2=70+ease*26;ctx.beginPath();ctx.moveTo(e.x+Math.cos(a)*r1,e.y+Math.sin(a)*r1);ctx.lineTo(e.x+Math.cos(a)*r2,e.y+Math.sin(a)*r2);ctx.stroke()}
+        }
+      }
+      ctx.restore();
+    }
+  }
+
+  function drawParticles(t) {
+    particles = particles.filter(p => t-p.born < p.life);
+    for (const p of particles) {
+      const age = (t-p.born)/1000;
+      const k = Math.min(1,(t-p.born)/p.life);
+      const x = p.x + p.vx*age;
+      const y = p.y + p.vy*age + 60*age*age;
+      ctx.save();ctx.globalAlpha=(1-k)*.9;ctx.fillStyle=p.color;ctx.shadowColor=p.color;ctx.shadowBlur=8*(1-k);ctx.beginPath();ctx.arc(x,y,p.size*(1-k*.45),0,Math.PI*2);ctx.fill();ctx.restore();
+    }
+    floatingTexts = floatingTexts.filter(f => t-f.born < f.life);
+    for (const f of floatingTexts) {
+      const k=(t-f.born)/f.life;
+      ctx.save();ctx.globalAlpha=Math.min(1,(1-k)*1.6);ctx.fillStyle=f.color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font=`1000 ${f.big?24:13}px system-ui`;ctx.shadowColor='rgba(0,0,0,.85)';ctx.shadowBlur=7;ctx.fillText(f.text,f.x,f.y-k*44);ctx.restore();
+    }
   }
 
   function frame(ts) {
     if (currentScreen === 'game' && room) {
       arenaTransform();
+      ctx.clearRect(0,0,1280,800);
       for(const rp of renderPlayers.values()){rp.x += (rp.tx-rp.x)*.24;rp.y += (rp.ty-rp.y)*.24}
+      ctx.save();
+      if (shake > .15) { ctx.translate((Math.random()-.5)*shake,(Math.random()-.5)*shake); shake *= .84; } else shake = 0;
       drawArena(ts);
       room.shards?.forEach(s => drawShard(s,ts));
       room.powerups?.forEach(p => drawPowerup(p,ts));
       room.players?.forEach(p => drawPlayer(p,ts));
       drawFx(ts);
+      drawParticles(ts);
+      ctx.restore();
       updateHud();
     }
     requestAnimationFrame(frame);
